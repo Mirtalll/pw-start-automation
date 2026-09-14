@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+yarn.lock
+pnpm-lock.yaml
+.npmrc
+node_modules
+
+# Test results
+/test-results/
+/playwright-report/
+/playwright/.cache/
+/allure-results/
+/allure-report/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+memories.md
+Dockerfile
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+sad-admin-auth.json
+
+# Editor directories and files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Screenshots and videos captured during tests
+/screenshots/
+/videos/
+/traces/
+
+# Playwright browsers
+/playwright/.cache/
+
+# Playwright
+/blob-report/
