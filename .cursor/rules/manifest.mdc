@@ -1,0 +1,320 @@
+---
+alwaysApply: true
+---
+
+# 🎭 Playwright Framework Manifest
+
+## 1. О Проекте
+
+- **Название:** pw-start-automation
+- **Версия:** 1.0.0
+- **Описание:** E2E-фреймворк для автоматизации UI-тестов сайта [playwright.dev](https://playwright.dev). Page Object Model, фрагменты, переиспользуемые компоненты, Allure-отчёты. Тесты проверяют хедер, навигацию, модальные окна и т.д.
+
+## 2. Технологический стек
+
+- **Язык:** TypeScript (ES2022, ESM)
+- **Раннер:** Playwright Test
+- **Ключевые зависимости:**
+  - `@playwright/test` 1.58.0 — тестовый раннер
+  - `allure-playwright` — отчёты Allure
+  - `@faker-js/faker` — генерация тестовых данных
+  - `allure-commandline` — генерация HTML-отчётов
+- **Инфраструктура:** CI-режим (переменная `CI`), без Docker/Kubernetes
+
+## 3. Архитектура и Структура
+
+**Иерархия слоёв:**
+
+```
+Страницы (Pages)  →  состоят из  →  Фрагменты (Fragments)  →  состоят из  →  Компоненты (Components)
+```
+
+- **Компоненты** (`/src/ui/components`) — атомарные UI-элементы: Button, Input, Checkbox, Label, Select, Title. Наследуются от `BaseComponent`, инкапсулируют локаторы и базовые действия.
+- **Фрагменты** (`/src/ui/fragments`) — переиспользуемые блоки страницы (хедер, сайдбар, модалки). Собираются из компонентов. Пример: `HeaderFragment` содержит `Label` (лого), `Button` (ссылки, поиск, переключатель темы).
+- **Страницы** (`/src/ui/pages`) — Page Object целиком. Агрегируют фрагменты. Пример: `MainPage` содержит `HeaderFragment`.
+
+**Фикстуры** (`/src/fixtures`):
+
+- `pom.fixtures.ts` — расширяет `baseTest` фикстурами `mainPage: MainPage` и `apiMock: ApiMock`. Инжектит готовый Page Object и helper для API-моков в тест.
+- `merge.fixtures.ts` — объединяет `baseTest` и `pomTest` через `mergeTests`, добавляет кастомные Allure-матчеры через `mergeExpects`. Экспортирует `test` и `expect` для спек-файлов.
+
+**Структура репозитория:**
+
+```text
+/
+├── tests/                    # E2E-тесты (*.spec.ts), импортируют test/expect из index
+├── src/
+│   ├── ui/
+│   │   ├── pages/            # Page Objects (BasePage, MainPage)
+│   │   ├── fragments/        # Фрагменты страниц (HeaderFragment и др.)
+│   │   └── components/       # UI-компоненты (Button, Input, Checkbox, Label, Select, Title)
+│   ├── fixtures/             # Фикстуры Playwright (pom.fixtures, merge.fixtures)
+│   ├── mocks/                # Helpers для сетевых моков (ApiMock)
+│   └── expects/              # Кастомные Allure-матчеры (toBeVisibleAllure, toHaveTextAllure и др.)
+├── index.ts                  # Точка входа: экспорт test, expect, страниц, компонентов
+├── playwright.config.ts      # Конфиг Playwright
+├── tsconfig.json
+└── package.json
+```
+
+| Папка/файл             | Назначение                                                           |
+| ---------------------- | -------------------------------------------------------------------- |
+| `/src`                 | Исходный код фреймворка                                              |
+| `/src/ui/pages`        | Page Object (BasePage, MainPage)                                     |
+| `/src/ui/fragments`    | Фрагменты страниц (HeaderFragment и др.)                             |
+| `/src/ui/components`   | UI-компоненты (Button, Input, Checkbox, Label, Select, Title)        |
+| `/src/fixtures`        | Фикстуры Playwright (POM, merge с кастомным expect)                  |
+| `/src/mocks`           | Helpers для API-моков (`ApiMock`)                                    |
+| `/src/expects`         | Кастомные Allure-матчеры (toBeVisibleAllure, toHaveTextAllure и др.) |
+| `/tests`               | E2E-тесты (`*.spec.ts`)                                              |
+| `/index.ts`            | Точка входа, экспорт страниц, компонентов и test/expect              |
+| `playwright.config.ts` | Конфиг Playwright (baseURL, Allure, таймауты)                        |
+
+## 4. Создание фрагментов
+
+**Базовый шаблон:**
+
+```typescript
+import type { Page, Locator } from '@playwright/test';
+import { BaseFragment } from './base.fragment';
+import { Button } from '../components/button.component';
+import { Label } from '../components/label.component';
+
+export class MyFragment extends BaseFragment {
+  root: Locator;
+  someButton: Button;
+  someLabel: Label;
+
+  constructor(page: Page) {
+    super(page);
+    this.root = this.page.locator('.container-selector');
+    this.someButton = new Button(this.page, this.root, 'button.submit', 'Submit button');
+    this.someLabel = new Label(this.page, this.root, '.title', 'Title');
+  }
+}
+```
+
+**Правила:**
+
+- Наследоваться от `BaseFragment`, передавать `page` в `super(page)`.
+- Объявить `root: Locator` — контейнер фрагмента (корневой элемент блока). `root` всегда `Locator`, не компонент.
+- Компоненты создавать в конструкторе: `new Button(page, parent, childSelector, name)`.
+- `parent` — `root` или `component.element`; `childSelector` — CSS внутри parent; `name` — читаемое описание для Allure (например, `'Docs Link'`, `'Logo'`).
+- **Выбор компонента:** `Label` — для текста/чтения; `Button` — для клика, hover, ссылок `<a>`; `Input` — для полей ввода; `Checkbox` — для чекбоксов; `Select` — для выпадающих списков.
+- **Селекторы:** предпочитать стабильные (data-атрибуты, role, семантические классы). Избегать сгенерированных классов (например, `.colorModeToggle_DEke`).
+- **Scoping:** все элементы фрагмента — внутри `root`. Не использовать голый `page.locator` для элементов, принадлежащих фрагменту.
+- **Свойство vs метод:** статичные элементы (всегда в DOM) — в конструкторе. Элементы, появляющиеся после действия (dropdown, modal) или зависящие от параметра — в методе.
+
+**Граница ответственности: fragment vs page**
+
+- `fragment`-метод — это локальная логика внутри одного блока. Если действие можно сформулировать как «внутри этого блока получить/открыть/выбрать элемент», это `fragment`.
+- `page`-метод — это пользовательский сценарий уровня страницы. Если действие можно сформулировать как «на странице пользователь выполняет flow и приходит к новому состоянию», это `page`.
+- `fragment` не должен склеивать несколько независимых фрагментов, навигацию и переходы по URL.
+- `page` может координировать несколько фрагментов, использовать `this.page`, выполнять `click + waitForUrl`, открытие модалки, поиск, переход между разделами и другие составные сценарии.
+
+**Методы внутри фрагмента:**
+
+- Для действий, зависящих от параметров или динамических элементов — выносить в методы.
+- Обёртывать в `allure.step()` для отчётов.
+- Для элементов внутри другого компонента использовать `component.element` как parent.
+- Использовать для scoping в пределах одного `root` и для динамических локаторов блока.
+- Пример `fragment`-метода: `headerFragment.getLanguageOption(prefix)` — возвращает динамическую опцию внутри language dropdown.
+
+```typescript
+async getLanguageOption(prefix: string): Promise<Button> {
+  return allure.step(`Получение опции языка: ${prefix}`, async () => {
+    return new Button(
+      this.page,
+      this.languageDropdown.element,
+      `.dropdown__menu .dropdown__link[data-language-prefix="${prefix}"]`,
+      `Language Option ${prefix}`
+    );
+  });
+}
+```
+
+- Простые действия (клик, hover) — вызывать напрямую: `this.docsLink.click()`.
+- Для проверок в тестах использовать `expect(fragment.root).toBeVisibleAllure('описание')` и т.п.
+- Методы, возвращающие компонент, должны иметь тип `Promise<Button>` (или другой компонент).
+- В методах для вложенных элементов использовать `parentComponent.element` как parent, а не `page.locator` — иначе при нескольких одинаковых блоках на странице селектор может попасть не туда.
+
+## 5. Создание страниц
+
+**Базовый шаблон:**
+
+```typescript
+import type { Page } from '@playwright/test';
+import { BasePage } from './base.page';
+import { HeaderFragment } from '../fragments/header.fragment';
+
+export class MainPage extends BasePage {
+  headerFragment: HeaderFragment;
+
+  constructor(page: Page) {
+    super(page);
+    this.headerFragment = new HeaderFragment(page);
+  }
+}
+```
+
+**Правила:**
+
+- Наследоваться от `BasePage`, передавать `page` в `super(page)`.
+- Страница агрегирует **фрагменты**, не компоненты напрямую. Компоненты — внутри фрагментов.
+- Фрагменты создавать в конструкторе: `new HeaderFragment(page)`. Каждый фрагмент получает `page`.
+- Одна страница — один URL или маршрут (например, главная, страница документации).
+
+**Методы BasePage (доступны во всех страницах):**
+
+| Метод                       | Описание                                                                          |
+| --------------------------- | --------------------------------------------------------------------------------- |
+| `openPage(url)`             | Переход по URL (относительно baseURL). `openPage('/')`, `openPage('/docs/intro')` |
+| `reload()`                  | Обновление страницы                                                               |
+| `goBack()` / `goForward()`  | Навигация по истории                                                              |
+| `getTitle()` / `getUrl()`   | Получение заголовка и URL                                                         |
+| `waitForUrl(url, options?)` | Ожидание перехода на URL (url: string или RegExp)                                 |
+| `screenshot(options?)`      | Скриншот страницы                                                                 |
+
+Все методы обёрнуты в `allure.step()` для отчётов.
+
+**Методы внутри страницы:**
+
+- Специфичные действия страницы (не фрагмента) — выносить в методы страницы.
+- Обёртывать в `allure.step()`.
+- Использовать `this.page` для доступа к Playwright Page.
+- Использовать для flow из двух и более шагов, для навигации, смены URL и для сценариев, которые объединяют несколько фрагментов или приводят страницу в новое состояние.
+- Примеры `page`-методов: `openDocs()` (`click + waitForUrl`), `openSearchAndType(query)` — если он открывает поиск и меняет состояние страницы.
+
+```typescript
+async openDocs(): Promise<void> {
+  await allure.step('Открыть раздел Docs', async () => {
+    await this.headerFragment.docsLink.click();
+    await this.waitForUrl(/\/docs\/intro/);
+  });
+}
+```
+
+**Регистрация в фикстурах:** новая страница добавляется в `pom.fixtures.ts` и экспортируется через `merge.fixtures`. Для `MainPage` уже есть фикстура `mainPage`.
+
+## 6. Написание автотестов
+
+**Базовый шаблон:**
+
+```typescript
+import { test, expect } from '../index';
+
+test.describe('Название группы', () => {
+  test.beforeEach(async ({ mainPage }) => {
+    await mainPage.openPage('/');
+  });
+
+  test('Описание проверки', async ({ mainPage }) => {
+    await expect(mainPage.headerFragment.logo).toBeVisibleAllure('Logo');
+  });
+});
+```
+
+**Правила:**
+
+- **Viewport:** только десктоп. Не использовать `setViewportSize` для мобильных, не писать тесты для мобильных элементов (hamburger, mobile menu).
+- **Импорт:** `import { test, expect } from '../index'` — только из index, не из `@playwright/test`.
+- **Фикстуры:** `async ({ mainPage })` — Page Object; `async ({ page, mainPage })` — когда нужен доступ к `page` (waitForURL, locator для элементов вне POM).
+- **API-моки:** `async ({ apiMock, mainPage })` или `async ({ apiMock, page, mainPage })` — когда сценарий требует подмены `fetch/xhr`.
+- **beforeEach:** подготовка состояния (открытие страницы, логин). `openPage('/')` — относительный путь к baseURL.
+- **Доступ к элементам:** через Page Object: `mainPage.headerFragment.docsLink`, `mainPage.headerFragment.logo`.
+
+**Allure-проверки:**
+
+| Матчер                                           | Пример                                                                     |
+| ------------------------------------------------ | -------------------------------------------------------------------------- |
+| `toBeVisibleAllure('описание')`                  | `expect(fragment.root).toBeVisibleAllure('Header root')`                   |
+| `toHaveTextAllure(regex, 'описание')`            | `expect(logo).toHaveTextAllure(/Playwright/, 'Logo')`                      |
+| `toHaveAttributeAllure(attr, regex, 'описание')` | `expect(link).toHaveAttributeAllure('href', /github\.com/, 'GitHub link')` |
+
+Второй аргумент — описание для Allure-отчёта.
+
+**Действия:**
+
+- Клик, hover — через компонент: `mainPage.headerFragment.docsLink.click()`, `.hover()`.
+- Динамические элементы — через метод фрагмента: `const option = await mainPage.headerFragment.getLanguageOption('/python/'); await option.click()`.
+- Элементы вне POM (модалки, временные блоки) — `page.locator('.DocSearch-Modal')`, затем `expect(...).toBeVisibleAllure()`.
+
+**API-моки:**
+
+- Для мокирования использовать fixture `apiMock`, а не прямой `page.route()`.
+- Ставить мок до `mainPage.openPage('/')` или другого `goto`, если запрос нужен на старте страницы.
+- Предпочитать короткие методы `apiMock.get(...)`, `apiMock.post(...)`; универсальный `apiMock.mock(...)` использовать для нестандартных кейсов.
+- `apiMock.reset()` использовать, когда в рамках одного теста нужно снять ранее зарегистрированные моки.
+- Мокировать только API/XHR/fetch. Не перехватывать document, styles, scripts и другие ассеты без отдельной причины.
+- Не переносить network-моки в `Page`, `Fragment` или `Component`: это тестовая инфраструктура, а не POM.
+
+```typescript
+test.beforeEach(async ({ apiMock, mainPage }) => {
+  await apiMock.get('**/api/search', { results: [] });
+  await mainPage.openPage('/');
+});
+```
+
+**Навигация и ожидания:**
+
+- `await page.waitForURL(/\/docs\/intro/)` — ожидание перехода.
+- Не использовать `locator.waitFor()` — `expect()` и действия (click, fill) сами ждут появления элемента (auto-retry).
+
+**Структура теста:**
+
+1. Arrange — подготовка (beforeEach или в начале теста).
+2. Act — действие (клик, ввод, навигация).
+3. Assert — проверки через `expect(...).toXxxAllure()`.
+
+Один тест — одна логическая проверка. Несколько связанных проверок в одном тесте допустимы (например, «хедер виден» — несколько expect подряд).
+
+**Именование:** `test.describe('Хедер')` — группа по фиче/блоку; `test('Ссылка Docs ведёт на intro')` — описание ожидаемого результата.
+
+**Именование переменных:**
+
+- Использовать `camelCase` для локальных переменных, параметров, фикстур и свойств: `mainPage`, `searchQuery`, `expectedTitle`.
+- Имя переменной должно отражать смысл сценария, а не техническую реализацию: `docsLink`, `themeToggle`, `searchModal`, а не `button1`, `elem`, `tmp`.
+- Для Page Object, fragment и component использовать имя по роли объекта: `mainPage`, `headerFragment`, `languageDropdown`, `searchInput`.
+- Для булевых переменных использовать префиксы `is`, `has`, `can`, `should`: `isDocsPageOpened`, `hasSearchResults`, `shouldOpenInNewTab`.
+- Для массивов и коллекций использовать множественное число: `navLinks`, `searchResults`, `supportedLanguages`.
+- Для ожидаемых данных использовать префикс `expected`: `expectedUrl`, `expectedLogoText`, `expectedRequestPayload`.
+- Для данных запроса, ответа и моков использовать предметные имена: `searchRequest`, `searchResponse`, `emptyResultsMock`, а не `data`, `responseBody`, `mock1`.
+- Избегать слишком общих имён: `value`, `item`, `obj`, `arr`, `res`, если переменная живёт дольше 1-2 строк и участвует в проверке.
+- Константы общего назначения можно называть в `UPPER_SNAKE_CASE`, только если это действительно переиспользуемая константа уровня файла: `DEFAULT_TIMEOUT_MS`. Обычные `const` внутри теста оставлять в `camelCase`.
+
+```typescript
+const expectedDocsUrl = '/docs/intro';
+const searchQuery = 'locator';
+const isSearchModalVisible = true;
+const searchResults = ['Auto-waiting', 'Locators'];
+```
+
+## 7. Стандарты
+
+- **Импорты в тестах:** `import { test, expect } from '../index'` — единая точка входа
+- **Page Object:** фикстура `mainPage` доступна через `async ({ mainPage })`
+- **API mocks:** фикстура `apiMock` доступна через `async ({ apiMock })`
+- **Allure-проверки:** `expect(locator).toBeVisibleAllure('описание')`, `toHaveTextAllure`, `toHaveAttributeAllure` и др.
+- **Именование:** `*.spec.ts` для тестов, `*.component.ts` для компонентов, `*.fragment.ts` для фрагментов, `*.page.ts` для страниц
+
+## 8. Быстрый старт
+
+```bash
+# Установка зависимостей
+npm install
+
+# Установка браузеров Playwright (если ещё не установлены)
+npx playwright install
+
+# Запуск тестов
+npm test
+
+# Запуск тестов в UI-режиме
+npm run test:ui
+
+# Проверка типов
+npm run typecheck
+
+# Генерация Allure-отчёта (после прогона)
+npx allure generate allure-results --clean -o allure-report && npx allure open allure-report
+```
