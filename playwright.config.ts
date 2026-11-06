@@ -6,7 +6,7 @@ export default defineConfig({
   timeout: 30000,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 0 : 0,
+  retries: process.env.CI ? 2 : 1,
   workers: process.env.CI ? 4 : undefined,
 
   reporter: [
@@ -31,7 +31,8 @@ export default defineConfig({
 
   use: {
     baseURL: 'https://playwright.dev',
-    trace: 'off',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
     actionTimeout: 30000,
     navigationTimeout: 30000,
     headless: true,

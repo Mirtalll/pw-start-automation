@@ -11,6 +11,7 @@ export const pomTest = baseTest.extend<PomFixtures>({
   apiMock: async ({ page }, use) => {
     const apiMock = new ApiMock(page);
     await use(apiMock);
+    await apiMock.reset();
   },
   mainPage: async ({ page }, use) => {
     const mainPage = new MainPage(page);

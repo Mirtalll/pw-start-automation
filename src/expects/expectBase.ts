@@ -60,7 +60,9 @@ export async function assertionBase(options: AssertionOptions): Promise<MatcherR
     const expectedInExpected = getExpectedOptions(options);
 
     await allure.step(logMessage, async () => {
-      const expectBuilder = assertionContext.isSoft ? baseExpected.soft(actualInExpected) : baseExpected(actualInExpected);
+      // Soft-режим обрабатывает сам Playwright по возвращённому { pass }:
+      // внутри матчера всегда используем обычный expect, иначе soft-ошибка проглатывается.
+      const expectBuilder = baseExpected(actualInExpected);
       const expectChain = assertionContext.isNot ? expectBuilder.not : expectBuilder;
       const chain = expectChain as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;
       await chain[baseAssertionName](...expectedInExpected);
