@@ -21,6 +21,9 @@
   },
   "author": "Pavel Schelokov",
   "license": "ISC",
+  "engines": {
+    "node": ">=18"
+  },
   "keywords": [],
   "resolutions": {},
   "devDependencies": {
