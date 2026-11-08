@@ -1,7 +1,7 @@
 {
   "name": "pw-start-automation",
   "version": "1.0.0",
-  "description": "Playwright start automation",
+  "description": "Playwright + TypeScript фреймворк: Page → Fragment → Component, Allure-отчётность, API-моки и кастомные матчеры",
   "type": "module",
   "main": "./index.ts",
   "module": "./index.ts",
@@ -24,7 +24,15 @@
   "engines": {
     "node": ">=18"
   },
-  "keywords": [],
+  "keywords": [
+    "playwright",
+    "typescript",
+    "e2e",
+    "automation",
+    "testing",
+    "allure",
+    "page-object"
+  ],
   "resolutions": {},
   "devDependencies": {
     "@faker-js/faker": "^9.7.0",
